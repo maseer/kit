@@ -7,17 +7,17 @@ import (
 	"strings"
 )
 
-type Response struct {
-	Code    int         `json:"code"`
-	Data    interface{} `json:"data"`
-	Message string      `json:"message"`
+type Response[T any] struct {
+	Code    int    `json:"code"`
+	Data    T      `json:"data"`
+	Message string `json:"message"`
 }
 
 var reError = regexp.MustCompile(`\[(\d+)\]`)
 
 const unknowErrCode = 1
 
-func (r *Response) SetCode(errSrc error) {
+func (r *Response[any]) SetCode(errSrc error) {
 	r.Code = unknowErrCode
 	if errSrc == nil {
 		r.Code = 0
