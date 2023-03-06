@@ -6,105 +6,54 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-
-	"golang.org/x/net/proxy"
 )
 
-var httpClient *http.Client
-var header map[string]string
-var cookies map[string]string
-var proxyStr = ""
-
-func HttpSetHeaders(header1 map[string]string) {
-	header = header1
+type HttpClient struct {
+	Headers     map[string]string
+	Cookies     map[string]string
+	ProxySocks5 string //like "127.0.0.1:7891"
+	client      *http.Client
 }
 
-func HttpSetCookies(cookies map[string]string) {
-	if cookies == nil {
-		cookies = map[string]string{}
-	}
-	for k, v := range cookies {
-		cookies[k] = v
+func DefaultClient() *HttpClient {
+	return &HttpClient{
+		client:  &http.Client{},
+		Headers: map[string]string{},
+		Cookies: map[string]string{},
 	}
 }
 
-func HttpSetCookie(k, v string) {
-	if cookies == nil {
-		cookies = map[string]string{}
-	}
-	cookies[k] = v
-}
-
-// HttpSetProxy 127.0.0.1:7891 => socks5://127.0..1:7891
-// or http_proxy env
-func HttpSetProxy(proxy string) {
-	proxyStr = proxy
-}
-
-func initClient() {
-	if httpClient != nil {
-		return
-	}
-	httpClient = &http.Client{}
-	if proxyStr == "" {
-		proxyStr = os.Getenv("http_proxy")
-	}
-	if proxyStr != "" {
-		dialSocksProxy, err := proxy.SOCKS5("tcp", proxyStr, nil, proxy.Direct)
-		if err != nil {
-			fmt.Println("Error connecting to proxy:", err)
-		}
-		tr := &http.Transport{Dial: dialSocksProxy.Dial}
-		httpClient.Transport = tr
-	}
-}
-
-func setCookieAndHeader(req *http.Request) {
-	defer func() {
-		cookies = map[string]string{}
-		header = map[string]string{}
-	}()
-
-	for k, v := range header {
+func (client *HttpClient) do(req *http.Request) (*http.Response, error) {
+	for k, v := range client.Headers {
 		req.Header.Set(k, v)
 	}
-	for k, v := range cookies {
+	for k, v := range client.Cookies {
 		req.AddCookie(&http.Cookie{
 			Name:  k,
 			Value: v,
 		})
 	}
+	return client.client.Do(req)
 }
 
-func Http(u string, method string, jsonObject any) (*http.Response, error) {
-	initClient()
+func (client *HttpClient) Http(u string, method string, jsonObject any) (*http.Response, error) {
 	var dataReader io.Reader
 	if jsonObject != nil {
-		if header == nil {
-			header = map[string]string{}
-		}
-		header["Content-Type"] = "application/json"
+		client.Headers["Content-Type"] = "application/json"
 		jsonStr, err := json.Marshal(jsonObject)
 		if err != nil {
 			return nil, err
 		}
 		dataReader = bytes.NewReader(jsonStr)
 	}
-
 	req, err := http.NewRequest(method, u, dataReader)
 	if err != nil {
 		return nil, err
 	}
-	setCookieAndHeader(req)
-	resp, err := httpClient.Do(req)
+	resp, err := client.do(req)
 	if err != nil {
 		return nil, err
 	}
-	//debug
-	// bs3, _ := io.ReadAll(resp.Body)
-	// fmt.Printf("%s\n", bs3)
-
 	if resp.StatusCode != http.StatusOK {
 		bs, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("StatusCode:'%d'\nbody:'%s'", resp.StatusCode, bs)
@@ -112,16 +61,16 @@ func Http(u string, method string, jsonObject any) (*http.Response, error) {
 	return resp, err
 }
 
-func HttpPostBytes(u string, jsonObject any) ([]byte, error) {
-	resp, err := Http(u, http.MethodPost, jsonObject)
+func (c *HttpClient) HttpPostBytes(u string, jsonObject any) ([]byte, error) {
+	resp, err := c.Http(u, http.MethodPost, jsonObject)
 	if err != nil {
 		return nil, err
 	}
 	return io.ReadAll(resp.Body)
 }
 
-func HttpPostTarget(u string, jsonObject any, target any) error {
-	resp, err := Http(u, http.MethodPost, jsonObject)
+func (c *HttpClient) HttpPostTarget(u string, jsonObject any, target any) error {
+	resp, err := c.Http(u, http.MethodPost, jsonObject)
 	if err != nil {
 		return err
 	}
@@ -132,16 +81,16 @@ func HttpPostTarget(u string, jsonObject any, target any) error {
 	return json.Unmarshal(bs, target)
 }
 
-func HttpGetBytes(u string) ([]byte, error) {
-	resp, err := Http(u, http.MethodGet, nil)
+func (c *HttpClient) HttpGetBytes(u string) ([]byte, error) {
+	resp, err := c.Http(u, http.MethodGet, nil)
 	if err != nil {
 		return nil, err
 	}
 	return io.ReadAll(resp.Body)
 }
 
-func HttpGetTarget(u string, target any) error {
-	bs, err := HttpGetBytes(u)
+func (c *HttpClient) HttpGetTarget(u string, target any) error {
+	bs, err := c.HttpGetBytes(u)
 	if err != nil {
 		return err
 	}
