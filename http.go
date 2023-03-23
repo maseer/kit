@@ -45,7 +45,7 @@ func DefaultClient() *HttpClient {
 		Cookies:      map[string]string{},
 		lockCheckNet: sync.Mutex{},
 	}
-	if v := os.Getenv("socks_proxy"); v != "" {
+	if v := os.Getenv("socks5_proxy"); v != "" {
 		client.SetSocks5Proxy(v)
 	}
 	return client
