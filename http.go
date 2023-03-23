@@ -40,9 +40,7 @@ type HttpClient struct {
 
 func DefaultClient() *HttpClient {
 	client := &HttpClient{
-		client: &http.Client{
-			Timeout: time.Second * 2,
-		},
+		client:       &http.Client{},
 		Headers:      map[string]string{},
 		Cookies:      map[string]string{},
 		lockCheckNet: sync.Mutex{},
